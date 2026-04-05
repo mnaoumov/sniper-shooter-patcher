@@ -1,0 +1,7 @@
+decoded_tmp/
+*_patched.apk
+*_output.apk
+*.idsig
+*.sig
+debug.keystore
+.claude/settings.local.json
