@@ -471,6 +471,21 @@ def patch_pending_intents(decoded_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# P13: Background image scale fix for modern aspect ratios
+# ---------------------------------------------------------------------------
+def patch_background_scale(decoded_dir: Path) -> None:
+    print("[P13] Patching main_fragment.xml (background scale for wide screens)...")
+    path = decoded_dir / "res" / "layout" / "main_fragment.xml"
+    if not path.exists():
+        print("  [skip] main_fragment.xml not found")
+        return
+    text = path.read_text(encoding="utf-8")
+    # Change centerCrop to fitCenter so the full image (including logo) is visible
+    text = text.replace('android:scaleType="centerCrop"', 'android:scaleType="fitCenter"')
+    path.write_text(text, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def _stub_method(text: str, method_pattern: str, replacement: str) -> str:
@@ -587,6 +602,7 @@ def main() -> None:
     patch_ntp_time(decoded_dir)
     patch_heyzap_prefs(decoded_dir)
     patch_pending_intents(decoded_dir)
+    patch_background_scale(decoded_dir)
     print()
 
     # Step 3: Rebuild
