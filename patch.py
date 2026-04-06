@@ -486,6 +486,108 @@ def patch_background_scale(decoded_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# P14: ShopManager purchase bypass (IAB -> direct grant)
+# ---------------------------------------------------------------------------
+def patch_shop_manager(decoded_dir: Path) -> None:
+    print("[P14] Patching ShopManager (bypass IAB, grant purchases directly)...")
+    path = (
+        decoded_dir
+        / "smali"
+        / "com"
+        / "fungamesforfree"
+        / "snipershooter"
+        / "r"
+        / "ag.smali"
+    )
+    if not path.exists():
+        print("  [skip] ShopManager not found")
+        return
+    text = path.read_text(encoding="utf-8")
+
+    # Stub a(String, am)V - the purchase launch method.
+    # Original flow: calls IabHelper.launchPurchaseFlow -> Google Play Billing (broken).
+    # New flow: find weapon by SKU, call GameData.purchaseWeapon(), invoke success callback.
+    text = _stub_method(
+        text,
+        r"\.method public a\(Ljava/lang/String;Lcom/fungamesforfree/snipershooter/r/am;\)V",
+        """\
+.method public a(Ljava/lang/String;Lcom/fungamesforfree/snipershooter/r/am;)V
+    .locals 4
+
+    .prologue
+    # Bypass Google Play IAB - grant weapon purchase directly.
+    # p1 = SKU string, p2 = purchase callback (am interface)
+
+    # Convert SKU to weapon name using d/a.a(String)->String
+    invoke-static {p1}, Lcom/fungamesforfree/snipershooter/d/a;->a(Ljava/lang/String;)Ljava/lang/String;
+
+    move-result-object v0
+
+    # Iterate weapons list (field e) to find matching weapon
+    iget-object v1, p0, Lcom/fungamesforfree/snipershooter/r/ag;->e:Ljava/util/List;
+
+    invoke-interface {v1}, Ljava/util/List;->iterator()Ljava/util/Iterator;
+
+    move-result-object v1
+
+    :loop_start
+    invoke-interface {v1}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v2
+
+    if-eqz v2, :loop_end
+
+    invoke-interface {v1}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v2
+
+    check-cast v2, Lcom/fungamesforfree/snipershooter/d/a;
+
+    invoke-virtual {v2}, Lcom/fungamesforfree/snipershooter/d/a;->A()Ljava/lang/String;
+
+    move-result-object v3
+
+    invoke-virtual {v0, v3}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v3
+
+    if-eqz v3, :loop_start
+
+    # Found matching weapon - mark as purchased in GameData
+    iget-object v3, p0, Lcom/fungamesforfree/snipershooter/r/ag;->g:Lcom/fungamesforfree/snipershooter/data/GameData;
+
+    invoke-virtual {v2}, Lcom/fungamesforfree/snipershooter/d/a;->r()I
+
+    move-result v2
+
+    invoke-virtual {v3, v2}, Lcom/fungamesforfree/snipershooter/data/GameData;->purchaseWeapon(I)V
+
+    :loop_end
+    # Mark that user has bought something
+    iget-object v0, p0, Lcom/fungamesforfree/snipershooter/r/ag;->g:Lcom/fungamesforfree/snipershooter/data/GameData;
+
+    const/4 v1, 0x1
+
+    invoke-virtual {v0, v1}, Lcom/fungamesforfree/snipershooter/data/GameData;->setUserBoughtSomething(Z)V
+
+    # Invoke callback with ItemPurchased result
+    if-eqz p2, :done
+
+    const/4 v0, 0x0
+
+    sget-object v1, Lcom/fungamesforfree/snipershooter/r/aa;->a:Lcom/fungamesforfree/snipershooter/r/aa;
+
+    invoke-interface {p2, p1, v0, v1}, Lcom/fungamesforfree/snipershooter/r/am;->a(Ljava/lang/String;Lcom/fungamesforfree/snipershooter/r/z;Lcom/fungamesforfree/snipershooter/r/aa;)V
+
+    :done
+    return-void
+.end method""",
+    )
+
+    path.write_text(text, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def _stub_method(text: str, method_pattern: str, replacement: str) -> str:
@@ -603,6 +705,7 @@ def main() -> None:
     patch_heyzap_prefs(decoded_dir)
     patch_pending_intents(decoded_dir)
     patch_background_scale(decoded_dir)
+    patch_shop_manager(decoded_dir)
     print()
 
     # Step 3: Rebuild

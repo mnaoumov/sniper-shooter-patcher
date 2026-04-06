@@ -105,6 +105,19 @@ Files patched:
 - `com/playhaven/android/push/GCMRegistrationRequest.smali` - getBroadcast: add v5=0x4000000 flag
 - `com/playhaven/android/push/PushReceiver.smali` - getBroadcast: set v6=0x4000000 before call, reset to 0 after
 
+### P14. ShopManager Purchase Bypass (`com/fungamesforfree/snipershooter/r/ag.smali`)
+- Stub `a(String, am)V` (the purchase launch method) to bypass Google Play IAB
+- Instead of calling IabHelper.launchPurchaseFlow, directly:
+  - Convert SKU to weapon name via `d/a.a(String)`
+  - Find matching weapon in the weapons list
+  - Call `GameData.purchaseWeapon(weaponId)` to mark weapon as owned
+  - Call `GameData.setUserBoughtSomething(true)`
+  - Invoke the success callback with `PurchaseResult.ItemPurchased`
+- **Why**: The game used Google Play In-App Billing for weapon purchases (not local coins).
+  Since the game is delisted from Google Play, the billing service is unavailable and all
+  purchases fail with "Purchase failed! Please check your network connection." This patch
+  makes all weapon purchases succeed locally without requiring Google Play.
+
 ## Architecture Notes
 
 - The game is a **pure Java/Android app** (no native .so libraries, no game engine like Unity/Cocos)
