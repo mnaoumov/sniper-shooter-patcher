@@ -1,4 +1,5 @@
 decoded_tmp/
+original.apk
 *_patched.apk
 *_output.apk
 *.idsig
